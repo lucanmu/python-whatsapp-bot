@@ -7,32 +7,37 @@ import hmac
 
 def validate_signature(payload, signature):
     """
-    Validate the incoming payload's signature against our expected signature
+    Função para validar a assinatura do payload recebido com a assinatura esperada.
     """
-    # Use the App Secret to hash the payload
+    # Usa o segredo do aplicativo para gerar o hash do payload
     expected_signature = hmac.new(
-        bytes(current_app.config["APP_SECRET"], "latin-1"),
-        msg=payload.encode("utf-8"),
-        digestmod=hashlib.sha256,
-    ).hexdigest()
+        bytes(current_app.config["APP_SECRET"], "latin-1"),  # Secret key do app
+        msg=payload.encode("utf-8"),  # Payload recebido, codificado em UTF-8
+        digestmod=hashlib.sha256,  # Algoritmo de hash SHA-256
+    ).hexdigest()  # Gera o hash e converte em uma string hexadecimal
 
-    # Check if the signature matches
+    # Compara a assinatura gerada com a assinatura recebida
     return hmac.compare_digest(expected_signature, signature)
 
 
 def signature_required(f):
     """
-    Decorator to ensure that the incoming requests to our webhook are valid and signed with the correct signature.
+    Decorador para garantir que as requisições recebidas no webhook sejam válidas e assinadas com a assinatura correta.
     """
 
-    @wraps(f)
+    @wraps(f)  # Preserva informações originais da função decorada (como nome e docstring)
     def decorated_function(*args, **kwargs):
-        signature = request.headers.get("X-Hub-Signature-256", "")[
-            7:
-        ]  # Removing 'sha256='
+        # Extrai a assinatura do cabeçalho HTTP 'X-Hub-Signature-256', removendo o prefixo 'sha256='
+        signature = request.headers.get("X-Hub-Signature-256", "")[7:]
+
+        # Valida a assinatura usando a função validate_signature
         if not validate_signature(request.data.decode("utf-8"), signature):
-            logging.info("Signature verification failed!")
+            # Loga a falha de verificação de assinatura
+            logging.info("Falha na verificação da assinatura!")
+            # Retorna um erro 403 (proibido) com uma mensagem de assinatura inválida
             return jsonify({"status": "error", "message": "Invalid signature"}), 403
+
+        # Se a assinatura for válida, executa a função original
         return f(*args, **kwargs)
 
     return decorated_function
